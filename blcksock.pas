@@ -2981,13 +2981,13 @@ var s:string;
     c:string;
 begin
 //benibela debug
-  if Writing then c:='->'
+{  if Writing then c:='->'
   else c:='<-';
   s:=copy(string(pchar(buffer)),1,len);
   s:=StringReplace(s,#10,'',[rfReplaceAll]);
   s:=StringReplace(s,#13,#13+c,[rfReplaceAll]);
   writeln(c+s);
-
+}
   if assigned(OnMonitor) then
   begin
     OnMonitor(Self, Writing, Buffer, Len);
