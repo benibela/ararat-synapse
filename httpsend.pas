@@ -493,6 +493,7 @@ begin
     Exit;
   end;
 
+
   { reading Status }
   FDocument.Position := 0;
   Status100Error := '';
@@ -537,6 +538,8 @@ begin
         s := PrepareHeaders + ReadStrFromStream(FDocument, FDocument.Size);
         FUploadSize := Length(s);
         FSock.SendString(s);
+
+        //writeln(s);
       end;
     end
     else
