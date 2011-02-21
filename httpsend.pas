@@ -485,6 +485,10 @@ begin
   if FHeaders[FHeaders.Count - 1] <> '' then
     FHeaders.Add('');
 
+  //for x:=0 to fHeaders.Count-1 do
+  //  writeln('  Header:', fHeaders[x]);
+
+
   { connect }
   if not InternalConnect(UpperCase(Prot) = 'HTTPS') then
   begin
