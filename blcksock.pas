@@ -3318,7 +3318,7 @@ begin
       end
       else
         Result := #3 + char(Length(IP)) + IP;
-    Result := Result + CodeInt(ResolvePort(Port));
+    Result := Result + CodeInt(SwapEndian(ResolvePort(Port)));
   end;
 end;
 
