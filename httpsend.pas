@@ -394,7 +394,7 @@ var
 begin
   {initial values}
   Result := False;
-  FResultCode := 500;
+  FResultCode := 99999;
   FResultString := '';
   FDownloadSize := 0;
   FUploadSize := 0;
@@ -842,4 +842,4 @@ begin
   end;
 end;
 
-end.
+end.
