@@ -3442,7 +3442,7 @@ var
 begin
   if FSocksType <> ST_Socks5 then
   begin
-    Result := CodeInt(ResolvePort(Port));
+    Result := CodeInt(SwapEndian(ResolvePort(Port)));
     if not FSocksResolver then
       IP := ResolveName(IP);
     if IsIP(IP) then
@@ -3473,7 +3473,7 @@ begin
       end
       else
         Result := #3 + AnsiChar(Length(IP)) + IP;
-    Result := Result + CodeInt(ResolvePort(Port));
+    Result := Result + CodeInt(SwapEndian(ResolvePort(Port)));
   end;
 end;
 
