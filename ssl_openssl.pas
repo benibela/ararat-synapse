@@ -1,9 +1,9 @@
 {==============================================================================|
-| Project : Ararat Synapse                                       | 001.002.000 |
+| Project : Ararat Synapse                                       | 001.003.000 |
 |==============================================================================|
 | Content: SSL support by OpenSSL                                              |
 |==============================================================================|
-| Copyright (c)1999-2008, Lukas Gebauer                                        |
+| Copyright (c)1999-2017, Lukas Gebauer                                        |
 | All rights reserved.                                                         |
 |                                                                              |
 | Redistribution and use in source and binary forms, with or without           |
@@ -33,7 +33,7 @@
 | DAMAGE.                                                                      |
 |==============================================================================|
 | The Initial Developer of the Original Code is Lukas Gebauer (Czech Republic).|
-| Portions created by Lukas Gebauer are Copyright (c)2005-2012.                |
+| Portions created by Lukas Gebauer are Copyright (c)2005-2017.                |
 | Portions created by Petr Fejfar are Copyright (c)2011-2012.                  |
 | All Rights Reserved.                                                         |
 |==============================================================================|
@@ -47,12 +47,12 @@
 
 {:@abstract(SSL plugin for OpenSSL)
 
-You need OpenSSL libraries version 0.9.7. It can work with 0.9.6 too, but
-application mysteriously crashing when you are using freePascal on Linux.
-Use Kylix on Linux is OK! If you have version 0.9.7 on Linux, then I not see
-any problems with FreePascal.
+Compatibility with OpenSSL versions:
+0.9.6 should work, known mysterious crashing on FreePascal and Linux platform.
+0.9.7 - 1.0.0 working fine.
+1.1.0 should work, under testing.
 
-OpenSSL libraries are loaded dynamicly - you not need OpenSSl librares even you
+OpenSSL libraries are loaded dynamicly - you not need OpenSSL librares even you
 compile your application with this unit. SSL just not working when you not have
 OpenSSL libraries.
 
@@ -426,8 +426,18 @@ begin
       Fctx := SslCtxNew(SslMethodV3);
     LT_TLSv1:
       Fctx := SslCtxNew(SslMethodTLSV1);
+    LT_TLSv1_1:
+      Fctx := SslCtxNew(SslMethodTLSV11);
+    LT_TLSv1_2:
+      Fctx := SslCtxNew(SslMethodTLSV12);
     LT_all:
-      Fctx := SslCtxNew(SslMethodV23);
+      begin
+        //try new call for OpenSSL 1.1.0 first
+        Fctx := SslCtxNew(SslMethodTLS);
+        if Fctx=nil then
+          //callback to previous versions
+          Fctx := SslCtxNew(SslMethodV23);
+      end;
   else
     Exit;
   end;
@@ -499,6 +509,8 @@ end;
 function TSSLOpenSSL.Connect: boolean;
 var
   x: integer;
+  b: boolean;
+  err: integer;
 begin
   Result := False;
   if FSocket.Socket = INVALID_SOCKET then
@@ -515,12 +527,36 @@ begin
       Exit;
     end;
     if SNIHost<>'' then
-      SSLCtrl(Fssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, PAnsiChar(SNIHost));
-    x := sslconnect(FSsl);
-    if x < 1 then
+      SSLCtrl(Fssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, PAnsiChar(AnsiString(SNIHost)));
+    if FSocket.ConnectionTimeout <= 0 then //do blocking call of SSL_Connect
     begin
-      SSLcheck;
-      Exit;
+      x := sslconnect(FSsl);
+      if x < 1 then
+      begin
+        SSLcheck;
+        Exit;
+      end;
+    end
+    else //do non-blocking call of SSL_Connect
+    begin
+      b := Fsocket.NonBlockMode;
+      Fsocket.NonBlockMode := true;
+      repeat
+        x := sslconnect(FSsl);
+        err := SslGetError(FSsl, x);
+        if err = SSL_ERROR_WANT_READ then
+          if not FSocket.CanRead(FSocket.ConnectionTimeout) then
+            break;
+        if err = SSL_ERROR_WANT_WRITE then
+          if not FSocket.CanWrite(FSocket.ConnectionTimeout) then
+            break;
+      until (err <> SSL_ERROR_WANT_READ) and (err <> SSL_ERROR_WANT_WRITE);
+      Fsocket.NonBlockMode := b;
+      if err <> SSL_ERROR_NONE then
+      begin
+        SSLcheck;
+        Exit;
+      end;
     end;
   if FverifyCert then
     if (GetVerifyCert <> 0) or (not DoVerifyCert) then
