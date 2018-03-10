@@ -1840,7 +1840,7 @@ end;
 
 {$ENDIF}
 
-function LoadLib(const Value: String): HModule;
+function LoadLib(const Value: String): TLibHandle;
 begin
 {$IFDEF CIL}
   Result := LoadLibrary(Value);
@@ -1849,7 +1849,7 @@ begin
 {$ENDIF}
 end;
 
-function GetProcAddr(module: HModule; const ProcName: string): SslPtr;
+function GetProcAddr(module: TLibHandle; const ProcName: string): SslPtr;
 begin
 {$IFDEF CIL}
   Result := GetProcAddress(module, ProcName);
