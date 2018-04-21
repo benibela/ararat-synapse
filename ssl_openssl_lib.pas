@@ -113,8 +113,8 @@ const
 var
   {$IFNDEF MSWINDOWS}
     {$IFDEF DARWIN}
-    DLLSSLNames: array[1..1] of string = ('libssl.dylib';
-    DLLUtilNames: array[1..1] of string = ('libcrypto.dylib';
+    DLLSSLNames: array[1..1] of string = ('libssl.dylib');
+    DLLUtilNames: array[1..1] of string = ('libcrypto.dylib');
     {$ELSE}
      {$IFDEF OS2}
       {$IFDEF OS2GCC}
@@ -140,10 +140,10 @@ var
     {$ENDIF}
   {$ELSE}
   DLLSSLNames: array[1..4] of string = ('libssl-1_1.dll', 'ssleay32.dll', 'libssl32.dll',
-                                       {just in case some renames them:}
+                                       {just in case someone renames them:}
                                        'libssl.dll');
   DLLUtilNames: array[1..4] of string = ('libcrypto-1_1.dll', 'libeay32.dll',
-                                       {just in case some renames them:}
+                                       {just in case someone renames them:}
                                         'libcrypto.dll', 'libeay.dll');
   {$ENDIF}
 {$ENDIF}
