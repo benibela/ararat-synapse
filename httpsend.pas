@@ -63,6 +63,8 @@ Used RFC: RFC-1867, RFC-1947, RFC-2388, RFC-2616
   {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 {$ENDIF}
 
+{$DEFINE DEBUG_SYNAPSE_HEADERS}
+
 unit httpsend;
 
 interface
@@ -504,6 +506,8 @@ begin
   end;
   if FHeaders[FHeaders.Count - 1] <> '' then
     FHeaders.Add('');
+
+  {$ifdef DEBUG_SYNAPSE_HEADERS}writeln(FHeaders.text);{$endif}
 
   { connect }
   if not InternalConnect(UpperCase(Prot) = 'HTTPS') then
