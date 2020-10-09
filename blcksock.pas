@@ -3920,7 +3920,7 @@ procedure TTCPBlockSocket.HTTPTunnelDoConnect(IP, Port: string);
 var
   s: string;
 begin
-  Port := IntToStr(ResolvePort(Port));
+  Port := IntToStr(ntohs(ResolvePort(Port)));
   inherited Connect(FHTTPTunnelIP, FHTTPTunnelPort);
   if FLastError <> 0 then
     Exit;
