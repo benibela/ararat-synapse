@@ -755,7 +755,7 @@ var
 begin
   Result := 0;
   FillChar(Sin, Sizeof(Sin), 0);
-  Sin.sin_port := Resolveport(port, family, SockProtocol, SockType);
+  Sin.sin_port := htons(Resolveport(port, family, SockProtocol, SockType));
   TwoPass := False;
   if Family = AF_UNSPEC then
   begin
@@ -858,7 +858,7 @@ var
   ProtoEnt: TProtocolEntry;
   ServEnt: TServiceEntry;
 begin
-  Result := synsock.htons(StrToIntDef(Port, 0));
+  Result := StrToIntDef(Port, 0);
   if Result = 0 then
   begin
     ProtoEnt.Name := '';

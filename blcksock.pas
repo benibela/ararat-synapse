@@ -3442,7 +3442,7 @@ var
 begin
   if FSocksType <> ST_Socks5 then
   begin
-    Result := CodeInt(SwapEndian(ResolvePort(Port)));
+    Result := CodeInt(ResolvePort(Port));
     if not FSocksResolver then
       IP := ResolveName(IP);
     if IsIP(IP) then
@@ -3473,7 +3473,7 @@ begin
       end
       else
         Result := #3 + AnsiChar(Length(IP)) + IP;
-    Result := Result + CodeInt(SwapEndian(ResolvePort(Port)));
+    Result := Result + CodeInt(ResolvePort(Port));
   end;
 end;
 
@@ -3920,7 +3920,7 @@ procedure TTCPBlockSocket.HTTPTunnelDoConnect(IP, Port: string);
 var
   s: string;
 begin
-  Port := IntToStr(ntohs(ResolvePort(Port)));
+  Port := IntToStr(ResolvePort(Port));
   inherited Connect(FHTTPTunnelIP, FHTTPTunnelPort);
   if FLastError <> 0 then
     Exit;
