@@ -1870,10 +1870,69 @@ begin
 {$ENDIF}
 end;
 
+procedure UnloadSSLibraryHandles;
+begin
+  if SSLLibHandle <> 0 then
+  begin
+  {$IFNDEF CIL}
+    FreeLibrary(SSLLibHandle);
+  {$ENDIF}
+    SSLLibHandle := 0;
+  end;
+  if SSLUtilHandle <> 0 then
+  begin
+  {$IFNDEF CIL}
+    FreeLibrary(SSLUtilHandle);
+  {$ENDIF}
+    SSLLibHandle := 0;
+  end;
+end;
+
 function InitSSLInterface: Boolean;
+  procedure loadLibrariesFromPrefix(const prefix: string);
+  var
+    i: Integer;
+  begin
+    {$IFDEF CIL}
+      SSLLibHandle := 1;
+      SSLUtilHandle := 1;
+    {$ELSE}
+      for i := low(DLLUtilNames) to high(DLLUtilNames) do begin
+        SSLUtilHandle := LoadLib(prefix + DLLUtilNames[i]);
+        if SSLUtilHandle <> 0 then break;
+      end;
+      for i := low(DLLSSLNames) to high(DLLSSLNames) do begin
+        SSLLibHandle := LoadLib(prefix + DLLSSLNames[i]);
+        if SSLLibHandle <> 0 then break;
+      end;
+    {$ENDIF}
+  end;
+
+  {$ifdef android}
+  procedure loadLibrariesAndroidPrefix();
+  var prefix: string;
+  begin
+    prefix := GetEnvironmentVariable('PREFIX');
+    if (prefix <> '') and DirectoryExists(prefix) then
+      loadLibrariesFromPrefix(prefix);
+  end;
+  {$endif}
+
+  procedure loadLibraries;
+  begin
+    {$ifdef android}
+    loadLibrariesAndroidPrefix();
+    if (SSLLibHandle <> 0) and (SSLUtilHandle <> 0) Then
+      exit
+     else
+      UnloadSSLibraryHandles;
+    {$endif}
+    loadLibrariesFromPrefix('');
+  end;
+
 var
   s: string;
-  x, i: integer;
+  x: integer;
 begin
   {pf}
   if SSLLoaded then
@@ -1886,19 +1945,7 @@ begin
   try
     if not IsSSLloaded then
     begin
-{$IFDEF CIL}
-      SSLLibHandle := 1;
-      SSLUtilHandle := 1;
-{$ELSE}
-      for i := low(DLLUtilNames) to high(DLLUtilNames) do begin
-        SSLUtilHandle := LoadLib(DLLUtilNames[i]);
-        if SSLUtilHandle <> 0 then break;
-      end;
-      for i := low(DLLSSLNames) to high(DLLSSLNames) do begin
-        SSLLibHandle := LoadLib(DLLSSLNames[i]);
-        if SSLLibHandle <> 0 then break;
-      end;
-{$ENDIF}
+      loadLibraries;
       if (SSLLibHandle <> 0) and (SSLUtilHandle <> 0) then
       begin
 {$IFNDEF CIL}
@@ -2043,20 +2090,7 @@ begin
       else
       begin
         //load failed!
-        if SSLLibHandle <> 0 then
-        begin
-{$IFNDEF CIL}
-          FreeLibrary(SSLLibHandle);
-{$ENDIF}
-          SSLLibHandle := 0;
-        end;
-        if SSLUtilHandle <> 0 then
-        begin
-{$IFNDEF CIL}
-          FreeLibrary(SSLUtilHandle);
-{$ENDIF}
-          SSLLibHandle := 0;
-        end;
+        UnloadSSLibraryHandles;
         Result := False;
       end;
     end
@@ -2084,20 +2118,7 @@ begin
       ErrRemoveState(0);
     end;
     SSLloaded := false;
-    if SSLLibHandle <> 0 then
-    begin
-{$IFNDEF CIL}
-      FreeLibrary(SSLLibHandle);
-{$ENDIF}
-      SSLLibHandle := 0;
-    end;
-    if SSLUtilHandle <> 0 then
-    begin
-{$IFNDEF CIL}
-      FreeLibrary(SSLUtilHandle);
-{$ENDIF}
-      SSLLibHandle := 0;
-    end;
+    UnloadSSLibraryHandles;
 
 {$IFNDEF CIL}
     _SslGetError := nil;
