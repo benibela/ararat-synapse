@@ -1913,8 +1913,8 @@ function InitSSLInterface: Boolean;
   var prefix: string;
   begin
     prefix := GetEnvironmentVariable('PREFIX');
-    if (prefix <> '') and DirectoryExists(prefix) then
-      loadLibrariesFromPrefix(prefix);
+    if (prefix <> '') and DirectoryExists(prefix + '/lib') then
+      loadLibrariesFromPrefix(prefix + '/lib/');
   end;
   {$endif}
 
