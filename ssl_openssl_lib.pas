@@ -106,41 +106,45 @@ uses
 {$IFDEF CIL}
 const
   {$IFDEF LINUX}
-  DLLSSLName = 'libssl.so';
-  DLLUtilName = 'libcrypto.so';
+  SSLLibNames: array[0..0] of string = ('libssl.so');
+  CryptoLibNames: array[0..0] of string = ('libcrypto.so');
   {$ELSE}
-  DLLSSLName = 'ssleay32.dll';
-  DLLUtilName = 'libeay32.dll';
+  SSLLibNames: array[0..0] of string = ('ssleay32.dll');
+  CryptoLibNames: array[0..0] of string = ('libeay32.dll');
   {$ENDIF}
 {$ELSE}
-var
+const
   {$IFNDEF MSWINDOWS}
     {$IFDEF DARWIN}
-    DLLSSLName: string = 'libssl.dylib';
-    DLLUtilName: string = 'libcrypto.dylib';
+    SSLLibNames: array[0..0] of string = ('libssl.dylib');
+    CryptoLibNames: array[0..0] of string = ('libcrypto.dylib');
     {$ELSE}
      {$IFDEF OS2}
       {$IFDEF OS2GCC}
-    DLLSSLName: string = 'kssl.dll';
-    DLLUtilName: string = 'kcrypto.dll';
+    SSLLibNames: array[0..0] of string = ('kssl.dll');
+    CryptoLibNames: array[0..0] of string = ('kcrypto.dll');
       {$ELSE OS2GCC}
-    DLLSSLName: string = 'ssl.dll';
-    DLLUtilName: string = 'crypto.dll';
+    SSLLibNames: array[0..0] of string = ('ssl.dll');
+    CryptoLibNames: array[0..0] of string = ('crypto.dll');
       {$ENDIF OS2GCC}
      {$ELSE OS2}
-    DLLSSLName: string = 'libssl.so';
-    DLLUtilName: string = 'libcrypto.so';
+     //Linux
+    SSLLibNames: array[0..4] of string = ('libssl.so',
+                                          {above file only exist in dev-packages that are not installed by default on most distributions}
+                                          'libssl.so.1.1',
+                                          'libssl.so.1.0.2', 'libssl.so.1.0.0',
+                                          'libssl.so.10');
+    CryptoLibNames: array[0..4] of string = ('libcrypto.so',
+                                           {above file only exist in dev-packages that are not installed by default on most distributions}
+                                           'libcrypto.so.1.1',
+                                           'libcrypto.so.1.0.2', 'libcrypto.so.1.0.0',
+                                           'libcrypto.so.10'
+                                           );
      {$ENDIF OS2}
     {$ENDIF}
-  {$ELSE}
-  DLLSSLName: string = 'ssleay32.dll';
-  DLLSSLName2: string = 'libssl32.dll';
-  DLLUtilName: string = 'libeay32.dll';
-  {$ENDIF}
-{$IFDEF MSWINDOWS}
-const
-  LibCount = 5;
-  SSLLibNames: array[0..LibCount-1] of string = (
+  {$ELSE MSWINDOWS}
+
+  SSLLibNames: array[0..4] of string = (
     // OpenSSL v3.0
     {$IFDEF WIN64}
     'libssl-3-x64.dll',
@@ -164,7 +168,7 @@ const
     // OpenSSL (ancient)
     'libssl32.dll'
   );
-  CryptoLibNames: array[0..LibCount-1] of string = (
+  CryptoLibNames: array[0..4] of string = (
     // OpenSSL v3.0
     {$IFDEF WIN64}
     'libcrypto-3-x64.dll',
@@ -1895,7 +1899,7 @@ end;
 
 {$ENDIF}
 
-function LoadLib(const Value: String): HModule;
+function LoadLib(const Value: String): TLibHandle;
 begin
 {$IFDEF CIL}
   Result := LoadLibrary(Value);
@@ -1904,7 +1908,7 @@ begin
 {$ENDIF}
 end;
 
-function GetProcAddr(module: HModule; const ProcName: string): SslPtr;
+function GetProcAddr(module: TLibHandle; const ProcName: string): SslPtr;
 begin
 {$IFDEF CIL}
   Result := GetProcAddress(module, ProcName);
@@ -1923,10 +1927,84 @@ begin
   SetLength(Result, n);
 end;
 
+procedure UnloadSSLibraryHandles;
+begin
+  if SSLLibHandle <> 0 then
+  begin
+  {$IFNDEF CIL}
+    FreeLibrary(SSLLibHandle);
+  {$ENDIF}
+    SSLLibHandle := 0;
+  end;
+  if SSLUtilHandle <> 0 then
+  begin
+  {$IFNDEF CIL}
+    FreeLibrary(SSLUtilHandle);
+  {$ENDIF}
+    SSLLibHandle := 0;
+  end;
+end;
+
 function InitSSLInterface: Boolean;
-var
-  s: string;
-  i: integer;
+  {$IFNDEF CIL}
+  procedure loadLibrariesFromPrefix(const prefix: string);
+  var
+    i: Integer;
+  begin
+    for i := low(CryptoLibNames) to high(CryptoLibNames) do begin
+      SSLUtilHandle := LoadLib(prefix + CryptoLibNames[i]);
+      if SSLUtilHandle <> 0 then break;
+    end;
+    for i := low(SSLLibNames) to high(SSLLibNames) do begin
+      SSLLibHandle := LoadLib(prefix + SSLLibNames[i]);
+      if SSLLibHandle <> 0 then break;
+    end;
+  end;
+
+  {$ifdef android}
+  procedure loadLibrariesAndroidPrefix();
+  var prefix: string;
+  begin
+    prefix := GetEnvironmentVariable('PREFIX');
+    if (prefix <> '') and DirectoryExists(prefix + '/lib') then
+      loadLibrariesFromPrefix(prefix + '/lib/');
+  end;
+  {$endif}
+
+  procedure loadLibraries;
+  {$IFDEF MSWINDOWS}
+  var
+    s: string;
+    i: integer;
+  {$ENDIF}
+  begin
+    {$IFDEF MSWINDOWS}
+    // Note: It's important to ensure that the libraries both come from the
+    // same directory, preferably the one of the executable. Otherwise a
+    // version mismatch could easily occur.
+    for i := low(SSLLibNames) to high(SSLLibNames) do
+    begin
+      SSLUtilHandle := LoadLib(CryptoLibNames[i]);
+      if SSLUtilHandle <> 0 then
+      begin
+        s := ExtractFilePath(GetLibFileName(SSLUtilHandle));
+        SSLLibHandle := LoadLib(s + SSLLibNames[i]);
+        Break;
+      end;
+    end;
+    {$ELSE}
+    {$ifdef android}
+    loadLibrariesAndroidPrefix();
+    if (SSLLibHandle <> 0) and (SSLUtilHandle <> 0) Then
+      exit
+     else
+      UnloadSSLibraryHandles;
+    {$endif}
+    loadLibrariesFromPrefix('');
+    {$ENDIF}
+  end;
+  {$ENDIF CIL}
+
 begin
   {pf}
   if SSLLoaded then
@@ -1939,28 +2017,12 @@ begin
   try
     if not IsSSLloaded then
     begin
+      loadLibraries;
 {$IFDEF CIL}
       SSLLibHandle := 1;
       SSLUtilHandle := 1;
 {$ELSE}
-      // Note: It's important to ensure that the libraries both come from the
-      // same directory, preferably the one of the executable. Otherwise a
-      // version mismatch could easily occur.
-      {$IFDEF MSWINDOWS}
-      for i := 0 to Pred(LibCount) do
-      begin
-        SSLUtilHandle := LoadLib(CryptoLibNames[i]);
-        if SSLUtilHandle <> 0 then
-        begin
-          s := ExtractFilePath(GetLibFileName(SSLUtilHandle));
-          SSLLibHandle := LoadLib(s + SSLLibNames[i]);
-          Break;
-        end;
-      end;
-      {$ELSE}
-      SSLUtilHandle := LoadLib(DLLUtilName);
-      SSLLibHandle := LoadLib(DLLSSLName);
-      {$ENDIF}
+      loadLibraries;
 {$ENDIF}
       if (SSLLibHandle <> 0) and (SSLUtilHandle <> 0) then
       begin
@@ -2100,20 +2162,7 @@ begin
       else
       begin
         //load failed!
-        if SSLLibHandle <> 0 then
-        begin
-{$IFNDEF CIL}
-          FreeLibrary(SSLLibHandle);
-{$ENDIF}
-          SSLLibHandle := 0;
-        end;
-        if SSLUtilHandle <> 0 then
-        begin
-{$IFNDEF CIL}
-          FreeLibrary(SSLUtilHandle);
-{$ENDIF}
-          SSLLibHandle := 0;
-        end;
+        UnloadSSLibraryHandles;
         Result := False;
       end;
     end
@@ -2141,20 +2190,7 @@ begin
       ErrRemoveState(0);
     end;
     SSLloaded := false;
-    if SSLLibHandle <> 0 then
-    begin
-{$IFNDEF CIL}
-      FreeLibrary(SSLLibHandle);
-{$ENDIF}
-      SSLLibHandle := 0;
-    end;
-    if SSLUtilHandle <> 0 then
-    begin
-{$IFNDEF CIL}
-      FreeLibrary(SSLUtilHandle);
-{$ENDIF}
-      SSLLibHandle := 0;
-    end;
+    UnloadSSLibraryHandles;
 
 {$IFNDEF CIL}
     _SslGetError := nil;

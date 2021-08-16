@@ -116,7 +116,8 @@ type
     function SetSslKeys: boolean; virtual;
     function Init: Boolean;
     function DeInit: Boolean;
-    function Prepare: Boolean;
+    function Prepare: Boolean; overload;
+    function Prepare(aserver: Boolean): Boolean; overload;
     function LoadPFX(pfxdata: ansistring): Boolean;
     function CreateSelfSignedCert(Host: string): Boolean; override;
     property Server: boolean read FServer;
@@ -326,7 +327,7 @@ begin
   end;
 end;
 
-function TSSLOpenSSL.LoadPFX(pfxdata: Ansistring): Boolean;
+function TSSLOpenSSL.LoadPFX(pfxdata: ansistring): Boolean;
 var
   cert, pkey, ca: SslPtr;
   b: PBIO;
@@ -515,6 +516,12 @@ begin
     Result := true
   else
     DeInit;
+end;
+
+function TSSLOpenSSL.Prepare(aserver: Boolean): Boolean;
+begin
+  fserver := aserver;
+  result := Prepare();
 end;
 
 function TSSLOpenSSL.Connect: boolean;
