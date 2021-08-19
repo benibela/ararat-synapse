@@ -301,8 +301,6 @@ const
 var
   SSLLibHandle: TLibHandle = 0;
   SSLUtilHandle: TLibHandle = 0;
-  SSLLibFile: string = '';
-  SSLUtilFile: string = '';
 
 {$IFDEF CIL}
   [DllImport(DLLSSLName, CharSet = CharSet.Ansi,
@@ -1917,16 +1915,6 @@ begin
 {$ENDIF}
 end;
 
-function GetLibFileName(Handle: THandle): string;
-var
-  n: integer;
-begin
-  n := MAX_PATH + 1024;
-  SetLength(Result, n);
-  n := GetModuleFilename(Handle, PChar(Result), n);
-  SetLength(Result, n);
-end;
-
 procedure UnloadSSLibraryHandles;
 begin
   if SSLLibHandle <> 0 then
@@ -2138,8 +2126,6 @@ begin
         OPENSSLaddallalgorithms;
         RandScreen;
 {$ELSE}
-        SSLLibFile := GetLibFileName(SSLLibHandle);
-        SSLUtilFile := GetLibFileName(SSLUtilHandle);
         //init library
         if assigned(_SslLibraryInit) then
           _SslLibraryInit;
