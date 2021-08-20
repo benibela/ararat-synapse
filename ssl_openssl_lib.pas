@@ -1914,6 +1914,19 @@ begin
   Result := GetProcAddress(module, PChar(ProcName));
 {$ENDIF}
 end;
+{$ifdef MSWINDOWS}
+
+function GetLibFileName(Handle: THandle): string;
+var
+  n: integer;
+begin
+  n := MAX_PATH + 1024;
+  SetLength(Result, n);
+  n := windows.GetModuleFilenameA(Handle, PChar(Result), n);
+  SetLength(Result, n);
+ end;
+{$endif}
+
 
 procedure UnloadSSLibraryHandles;
 begin
