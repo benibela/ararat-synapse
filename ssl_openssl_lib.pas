@@ -2018,7 +2018,6 @@ begin
   try
     if not IsSSLloaded then
     begin
-      loadLibraries;
 {$IFDEF CIL}
       SSLLibHandle := 1;
       SSLUtilHandle := 1;
