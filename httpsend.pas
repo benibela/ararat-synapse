@@ -428,7 +428,7 @@ begin
   {initial values}
   Result := False;
   FResultCode := 99999;
-  FResultString := '';
+  FResultString := 'Internal error: No HTTP response received. Possible causes: The server is not an HTTP server or a firewall has blocked the request.';
   FDownloadSize := 0;
   FUploadSize := 0;
 
