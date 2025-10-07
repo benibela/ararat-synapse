@@ -1021,6 +1021,7 @@ var
   _SslMethodTLS: TSslMethodTLS = nil;
   _SslCtxUsePrivateKey: TSslCtxUsePrivateKey = nil;
   _SslCtxUsePrivateKeyASN1: TSslCtxUsePrivateKeyASN1 = nil;
+  _SslCtxUseRSAPrivateKeyFile: TSslCtxUsePrivateKeyFile = nil;
   _SslCtxUsePrivateKeyFile: TSslCtxUsePrivateKeyFile = nil;
   _SslCtxUseCertificate: TSslCtxUseCertificate = nil;
   _SslCtxUseCertificateASN1: TSslCtxUseCertificateASN1 = nil;
@@ -1246,10 +1247,16 @@ end;
 //function SslCtxUsePrivateKeyFile(ctx: PSSL_CTX; const _file: PChar; _type: Integer):Integer;
 function SslCtxUsePrivateKeyFile(ctx: PSSL_CTX; const _file: AnsiString; _type: Integer):Integer;
 begin
-  if InitSSLInterface and Assigned(_SslCtxUsePrivateKeyFile) then
-    Result := _SslCtxUsePrivateKeyFile(ctx, PAnsiChar(_file), _type)
-  else
-    Result := 0;
+  Result := 0;
+  if not InitSSLInterface then
+    exit;
+  if Assigned(_SslCtxUsePrivateKeyFile) then
+    Result := _SslCtxUsePrivateKeyFile(ctx, PAnsiChar(_file), _type);
+  if (Result = 0) and Assigned(_SslCtxUseRSAPrivateKeyFile) and (_type = SSL_FILETYPE_ASN1) then begin
+    //fallback to SSL_CTX_use_RSAPrivateKey_file instead SSL_CTX_use_PrivateKey_file,
+    //because SSL_CTX_use_PrivateKey_file does not support DER format until openssl 0.9.8. (commit dc0ed30) :-O
+    Result := _SslCtxUseRSAPrivateKeyFile(ctx, PAnsiChar(_file), _type);
+  end;
 end;
 
 function SslCtxUseCertificate(ctx: PSSL_CTX; x: SslPtr):Integer;
@@ -2043,9 +2050,8 @@ begin
         _SslMethodTLS := GetProcAddr(SSLLibHandle, 'TLS_method');
         _SslCtxUsePrivateKey := GetProcAddr(SSLLibHandle, 'SSL_CTX_use_PrivateKey');
         _SslCtxUsePrivateKeyASN1 := GetProcAddr(SSLLibHandle, 'SSL_CTX_use_PrivateKey_ASN1');
-        //use SSL_CTX_use_RSAPrivateKey_file instead SSL_CTX_use_PrivateKey_file,
-        //because SSL_CTX_use_PrivateKey_file not support DER format. :-O
-        _SslCtxUsePrivateKeyFile := GetProcAddr(SSLLibHandle, 'SSL_CTX_use_RSAPrivateKey_file');
+        _SslCtxUsePrivateKeyFile := GetProcAddr(SSLLibHandle, 'SSL_CTX_use_PrivateKey_file');
+        _SslCtxUseRSAPrivateKeyFile := GetProcAddr(SSLLibHandle, 'SSL_CTX_use_RSAPrivateKey_file');
         _SslCtxUseCertificate := GetProcAddr(SSLLibHandle, 'SSL_CTX_use_certificate');
         _SslCtxUseCertificateASN1 := GetProcAddr(SSLLibHandle, 'SSL_CTX_use_certificate_ASN1');
         _SslCtxUseCertificateFile := GetProcAddr(SSLLibHandle, 'SSL_CTX_use_certificate_file');
@@ -2208,6 +2214,7 @@ begin
     _SslCtxUsePrivateKey := nil;
     _SslCtxUsePrivateKeyASN1 := nil;
     _SslCtxUsePrivateKeyFile := nil;
+    _SslCtxUseRSAPrivateKeyFile := nil;
     _SslCtxUseCertificate := nil;
     _SslCtxUseCertificateASN1 := nil;
     _SslCtxUseCertificateFile := nil;
