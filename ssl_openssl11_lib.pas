@@ -1,5 +1,5 @@
 {==============================================================================|
-| Project : Ararat Synapse                                       | 004.000.000 |
+| Project : Ararat Synapse                                       | 004.000.001 |
 |==============================================================================|
 | Content: SSL support by OpenSSL 1.1                                          |
 |==============================================================================|
@@ -88,7 +88,11 @@ uses
   BaseUnix,
    {$ENDIF UNIX}
   {$ELSE}
-   Libc,
+    {$IFDEF POSIX}
+    {$ELSE}
+      Libc,
+    {$ENDIF}
+
   {$ENDIF}
   SysUtils;
 {$ELSE}
@@ -133,6 +137,7 @@ type
   PSSL_METHOD = SslPtr;
   PX509 = SslPtr;
   PX509_NAME = SslPtr;
+  PX509_STORE = Pointer;
   PEVP_MD	= SslPtr;
   PInteger = ^Integer;
   PBIO_METHOD = SslPtr;
@@ -228,7 +233,6 @@ const
   TLS1_1_VERSION = $0302;
   TLS1_2_VERSION = $0303;
   TLS1_3_VERSION = $0304;
-
 var
   SSLLibHandle: TLibHandle = 0;
   SSLUtilHandle: TLibHandle = 0;
@@ -277,8 +281,10 @@ var
   function SSLCipherGetBits(c: SslPtr; var alg_bits: Integer):Integer;
   function SSLGetVerifyResult(ssl: PSSL):Integer;
   function SSLCtrl(ssl: PSSL; cmd: integer; larg: integer; parg: SslPtr):Integer;
+  function SslSet1Host(ssl: PSSL; hostname: PAnsiChar):Integer;
 
 // libeay.dll
+
   function X509New: PX509;
   procedure X509Free(x: PX509);
   function X509NameOneline(a: PX509_NAME; var buf: AnsiString; size: Integer):AnsiString;
@@ -325,9 +331,14 @@ var
   function d2iX509bio(b:PBIO; x:PX509):  PX509;    {pf}
   function PEMReadBioX509(b:PBIO; {var x:PX509;}x:PSslPtr; callback:PFunction; cb_arg: SslPtr):  PX509;    {pf}
   procedure SkX509PopFree(st: PSTACK; func: TSkPopFreeFunc); {pf}
-
+  function OPENSSL_sk_num(Stack: PSTACK): Integer;
+  function OPENSSL_sk_value(Stack: PSTACK; Item: Integer): PAnsiChar;
+  function X509_STORE_add_cert(Store: PX509_STORE; Cert: PX509): Integer;
+  function SSL_CTX_get_cert_store(const Ctx: PSSL_CTX): PX509_STORE;
 
   function i2dPrivateKeyBio(b: PBIO; pkey: EVP_PKEY): integer;
+
+
 
   // 3DES functions
   procedure DESsetoddparity(Key: des_cblock);
@@ -388,10 +399,21 @@ type
   TSSLCipherGetBits = function(c: SslPtr; alg_bits: PInteger):Integer; cdecl;
   TSSLGetVerifyResult = function(ssl: PSSL):Integer; cdecl;
   TSSLCtrl = function(ssl: PSSL; cmd: integer; larg: integer; parg: SslPtr):Integer; cdecl;
+  TSslSet1Host = function(ssl: PSSL; hostname: PAnsiChar):Integer; cdecl;
 
   TSSLSetTlsextHostName = function(ssl: PSSL; buf: PAnsiChar):Integer; cdecl;
 
 // libeay.dll
+
+  TOPENSSL_sk_new_null =  function: PSTACK; cdecl;
+  TOPENSSL_sk_num = function(Stack: PSTACK): Integer; cdecl;
+  TOPENSSL_sk_value = function(Stack: PSTACK; Item: Integer): PAnsiChar; cdecl;
+  TOPENSSL_sk_free = procedure(Stack: PSTACK); cdecl;
+  TOPENSSL_sk_insert = function(Stack: PSTACK; Data: PAnsiChar; Index: Integer): Integer; cdecl;
+  TX509_dup = function(X: PX509): PX509; cdecl;
+  TSSL_CTX_get_cert_store =  function(const Ctx: PSSL_CTX): PX509_STORE;cdecl;
+  TX509_STORE_add_cert = function(Store: PX509_STORE; Cert: PX509): Integer; cdecl;
+
   TX509New = function: PX509; cdecl;
   TX509NameOneline = function(a: PX509_NAME; buf: PAnsiChar; size: Integer):PAnsiChar; cdecl;
   TX509GetSubjectName = function(a: PX509):PX509_NAME; cdecl;
@@ -479,10 +501,20 @@ var
   _SSLCipherGetBits: TSSLCipherGetBits = nil;
   _SSLGetVerifyResult: TSSLGetVerifyResult = nil;
   _SSLCtrl: TSSLCtrl = nil;
+  _SslSet1Host: TSslSet1Host = nil;
   _SslCtxSetMinProtoVersion: TSslCtxSetMinProtoVersion = nil;
   _SslCtxSetMaxProtoVersion: TSslCtxSetMaxProtoVersion = nil;
 
 // libeay.dll
+
+  _OPENSSL_sk_new_null: TOPENSSL_sk_new_null  = nil;
+  _OPENSSL_sk_num: TOPENSSL_sk_num  = nil;
+  _OPENSSL_sk_value: TOPENSSL_sk_value  = nil;
+  _OPENSSL_sk_free: TOPENSSL_sk_free   = nil;
+  _OPENSSL_sk_insert: TOPENSSL_sk_insert = nil;
+  _SSL_CTX_get_cert_store : TSSL_CTX_get_cert_store = nil;
+  _X509_STORE_add_cert : TX509_STORE_add_cert = nil;
+
   _X509New: TX509New = nil;
   _X509NameOneline: TX509NameOneline = nil;
   _X509GetSubjectName: TX509GetSubjectName = nil;
@@ -835,6 +867,14 @@ begin
     Result := X509_V_ERR_APPLICATION_VERIFICATION;
 end;
 
+function SslSet1Host(ssl: PSSL; hostname: PAnsiChar):Integer;
+begin
+  if InitSSLInterface and Assigned(_SslSet1Host) then
+    Result := _SslSet1Host(ssl, hostname)
+  else
+    Result := 0;
+end;
+
 // libeay.dll
 function X509New: PX509;
 begin
@@ -1119,7 +1159,7 @@ end;
 function d2iX509bio(b: PBIO; x: PX509): PX509; {pf}
 begin
   if InitSSLInterface and Assigned(_d2iX509bio) then
-    Result := _d2iX509bio(x,b)
+    Result := _d2iX509bio(b, x)
   else
     Result := nil;
 end;
@@ -1130,6 +1170,30 @@ begin
     Result := _PEMReadBioX509(b,x,callback,cb_arg)
   else
     Result := nil;
+end;
+
+function OPENSSL_sk_num(Stack: PSTACK): Integer;
+begin
+  if InitSSLInterface and Assigned(_OPENSSL_sk_num) then
+    Result := _OPENSSL_sk_num(Stack);
+end;
+
+function SSL_CTX_get_cert_store(const Ctx: PSSL_CTX): PX509_STORE;
+begin
+  if InitSSLInterface and Assigned(_SSL_CTX_get_cert_store) then
+    Result := _SSL_CTX_get_cert_store(Ctx);
+end;
+
+function OPENSSL_sk_value(Stack: PSTACK; Item: Integer): PAnsiChar;
+begin
+  if InitSSLInterface and Assigned(_OPENSSL_sk_value) then
+    Result := _OPENSSL_sk_value(Stack, Item);
+end;
+
+function X509_STORE_add_cert(Store: PX509_STORE; Cert: PX509): Integer;
+begin
+  if InitSSLInterface and Assigned(_X509_STORE_add_cert) then
+    Result := _X509_STORE_add_cert(Store, Cert);
 end;
 
 procedure SkX509PopFree(st: PSTACK; func:TSkPopFreeFunc); {pf}
@@ -1268,6 +1332,15 @@ begin
         _SslCipherGetBits := GetProcAddr(SSLLibHandle, 'SSL_CIPHER_get_bits');
         _SslGetVerifyResult := GetProcAddr(SSLLibHandle, 'SSL_get_verify_result');
         _SslCtrl := GetProcAddr(SSLLibHandle, 'SSL_ctrl');
+        _SslSet1Host := GetProcAddr(SSLLibHandle, 'SSL_set1_host');
+
+        _OPENSSL_sk_new_null:= GetProcAddr(SSLUtilHandle, 'OPENSSL_sk_new_null');
+        _OPENSSL_sk_num:= GetProcAddr(SSLUtilHandle, 'OPENSSL_sk_num');
+        _OPENSSL_sk_value:= GetProcAddr(SSLUtilHandle, 'OPENSSL_sk_value');
+        _OPENSSL_sk_free:= GetProcAddr(SSLUtilHandle, 'OPENSSL_sk_free');
+        _OPENSSL_sk_insert:= GetProcAddr(SSLUtilHandle, 'OPENSSL_sk_insert');
+        _SSL_CTX_get_cert_store:= GetProcAddr(SSLLibHandle, 'SSL_CTX_get_cert_store');
+        _X509_STORE_add_cert := GetProcAddr(SSLUtilHandle, 'X509_STORE_add_cert');
 
         _X509New := GetProcAddr(SSLUtilHandle, 'X509_new');
         _X509Free := GetProcAddr(SSLUtilHandle, 'X509_free');
@@ -1409,6 +1482,7 @@ begin
     _SslCipherGetBits := nil;
     _SslGetVerifyResult := nil;
     _SslCtrl := nil;
+    _SslSet1Host := nil;
     _SslCtxSetMinProtoVersion := nil;
     _SslCtxSetMaxProtoVersion := nil;
 

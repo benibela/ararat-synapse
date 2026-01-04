@@ -1,5 +1,5 @@
 {==============================================================================|
-| Project : Ararat Synapse                                       | 001.004.000 |
+| Project : Ararat Synapse                                       | 001.004.001 |
 |==============================================================================|
 | Content: SSL support by OpenSSL                                              |
 |==============================================================================|
@@ -86,7 +86,7 @@ accepting of new connections!
   {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 {$ENDIF}
 
-unit ssl_openssl;
+unit ssl_openssl{$IFDEF SUPPORTS_DEPRECATED} deprecated{$IFDEF SUPPORTS_DEPRECATED_DETAILS} 'Use ssl_openssl3 with OpenSSL 3.0 instead'{$ENDIF}{$ENDIF};
 
 interface
 
@@ -155,7 +155,7 @@ type
     {:See @inherited}
     function GetPeerNameHash: cardinal; override; {pf}
     {:See @inherited}
-    function GetPeerFingerprint: string; override;
+    function GetPeerFingerprint: ansistring; override;
     {:See @inherited}
     function GetCertInfo: string; override;
     {:See @inherited}
@@ -539,7 +539,10 @@ begin
       Exit;
     end;
     if SNIHost<>'' then
+    begin
       SSLCtrl(Fssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, PAnsiChar(AnsiString(SNIHost)));
+      SslSet1Host(Fssl, PAnsiChar(AnsiString(SNIHost)));
+    end;
     if FSocket.ConnectionTimeout <= 0 then //do blocking call of SSL_Connect
     begin
       x := sslconnect(FSsl);
@@ -819,7 +822,7 @@ begin
   X509Free(cert);
 end;
 
-function TSSLOpenSSL.GetPeerFingerprint: string;
+function TSSLOpenSSL.GetPeerFingerprint: ansistring;
 var
   cert: PX509;
   x: integer;
